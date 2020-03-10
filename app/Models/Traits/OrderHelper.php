@@ -40,7 +40,17 @@ trait OrderHelper
      */
     public function orderManagePrint($orders,$user)
     {
-        foreach($orders as $order){
+        foreach($orders as $key => $order){
+            if(isset($orders[$key-1]) && $order['product_name'] != $orders[$key-1]['product_name']){
+                $cellData[] = [
+                    'code' => '',
+                    'color' => '',
+                    'num' => '',
+                    'product_name' => '',
+                    'onePrice' => '',
+                    'allPrice' => '',
+                ];
+            }
             $cellData[] = [
                 'code' => $order['code']['name'],
                 'color' => $order['color']['name'],
@@ -75,7 +85,7 @@ trait OrderHelper
     {
         $sno = $order->build_order_sn();
         foreach($data as &$order){
-            $productSku = ProductSku::find($order['product_sku_id'])->with('product:id,warehouse_id')->first();
+            $productSku = ProductSku::with('product:id,warehouse_id')->find($order['product_sku_id']);
             $order['category'] = $request->category;
             $order['address'] = $request->address;
             $order['sno'] = $sno;

@@ -42,13 +42,12 @@ class OrdersController extends Controller
     public function store(OrderRequest $request,Order $order)
     {
         $data = request('list');
+        $data = $order->orderStore($data,$order,$request);
+ 
         $creditAmount = collect($data)->sum('sale_price');
-
         if($creditAmount > auth('api')->user()->credit_amount){
             throw new CheckException(0,'授信金额不足');
         }
-
-        $data = $order->orderStore($data,$order,$request);
         return DB::transaction(function() use($data,$creditAmount){
 
             auth('api')->user()->orders()->createMany($data);
@@ -281,9 +280,8 @@ class OrdersController extends Controller
 
         if(isset($cellData)) return $order->export('出库列表',$cellData);
 
-        $data = todayDate($request->all());
         $user = User::find($request->user_id);
-        $orders = $user->agentOrder()->outbound()->filter($data)->get()->toArray(); 
+        $orders = Order::with('product','code','color')->where('sno',$request->sno)->get()->toArray();
 
         return $order->orderManageExport($orders,$user);
     }
@@ -297,10 +295,8 @@ class OrdersController extends Controller
      */
     public function managePrint(Request $request,Order $order)
     {
-        $data = todayDate($request->all());
-
         $user = User::find($request->user_id);
-        $orders = $user->agentOrder()->outbound()->filter($data)->get()->toArray();
+        $orders = Order::with('product','code','color')->where('sno',$request->sno)->get()->toArray();
         $orders = collect($orders)->sortBy('code.name')->sortBy('color.name')->sortBy('product_name');
         $orders = $orders->values()->all();
 
