@@ -17,10 +17,10 @@ class Order extends Model
 
     public $comment = '订单';
 
-    protected $fillable = ['product_id','product_name','category','address','num','cost_price','sale_price','status','remark','user_id','return_reason','warehouse_id',
+    protected $fillable = ['product_id','product_name','category','address','num','cost_price','sale_price','status','remark','users_id','return_reason','warehouse_id',
         'code','color','sno','product_sku_id','freight','track_number'];
 
-    protected $hidden = ['cost_price','updated_at','product_sku_id','warehouse_id','product_id'];
+    protected $hidden = ['updated_at','product_sku_id','warehouse_id','product_id'];
 
    /**
     * 获取用户
@@ -121,6 +121,18 @@ class Order extends Model
         $query->wherein('status',[1,2,3,6]);
     }
 
+
+    /**
+     * 获取确认订单
+     *
+     * @param [type] $query
+     * @return void
+     */
+    public function scopeConfirm($query)
+    {
+        $query->where('status',3);
+    }
+
     /**
      * 获取退货状态订单
      *
@@ -130,6 +142,53 @@ class Order extends Model
     public function scopeReturn($query)
     {
         $query->wherein('status',[4,5]);
+    }
+
+
+    /**
+     * 获取取人退货状态订单
+     *
+     * @param [type] $query
+     * @return void
+     */
+    public function scopeConfirmReturn($query)
+    {
+        $query->wherein('status',[5]);
+    }
+
+
+    /**
+     * 根据订单下单时间排序
+     *
+     * @param [type] $query
+     * @return void
+     */
+    public function scopeCreatedAtOrder($query)
+    {
+        $query->orderBy('created_at','desc');
+    }
+
+    /**
+     * 根据订单修改时间排序
+     *
+     * @param [type] $query
+     * @return void
+     */
+    public function scopeUpdatedAtOrder($query)
+    {
+        $query->orderBy('updated_at','desc');
+    }
+
+   /**
+    * 获取两个日期之间的订单
+    *
+    * @param [type] $query
+    * @param [type] $request
+    * @return void
+    */
+    public function scopeBetweenDate($query,$request)
+    {
+        return ($request['start_at'] && $request['end_at'])?$query->where('created_at','>=',$request['start_at'])->where('created_at','<=',$request['end_at']):$query;
     }
 
 

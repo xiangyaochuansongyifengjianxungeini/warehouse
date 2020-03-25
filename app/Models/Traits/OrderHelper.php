@@ -3,6 +3,7 @@ namespace App\Models\Traits;
 
 use App\Models\ProductSku;
 use Carbon\Carbon;
+use DB;
 
 trait OrderHelper
 {
@@ -15,15 +16,22 @@ trait OrderHelper
      */
     public function orderManage($request)
     {
-        $orders= auth('api')->user()->adminOrder()->outbound()->groupBy('sno')->filter($request->all())->paginateFilter(request('pageSize',10));
+        $data = $request->all();
+        (!$request->start_at && !$request->end_at) && $data = todayDate($data);
+
+        $orders= auth('api')->user()->adminOrder()->confirm()->groupBy('users_id')->createdAtOrder()
+        ->betweenDate($data)->filter($request->except(['start_at','end_at']))->select(DB::raw('sum(sale_price) as allPrice'),DB::raw('sum(num) as allNum'))
+        ->paginateFilter(request('pageSize',10));
 
         foreach($orders as $key => $order){
             $orders[$key] = [
                 'sno' => $order->sno,
-                'price' => sprintf('%.2f',$order->orderSno->sum('sale_price')),
+                'price' => $order->allPrice,
+                'productNum' => $order->allNum,
                 'user_name'=>$order->user->name,
                 'user_id' => $order->user->id,
                 'created_at' => (string)$order->created_at,
+                'is_print' => $order->is_print,
                 'status' => '已下单',
             ];
         }
@@ -40,18 +48,9 @@ trait OrderHelper
      */
     public function orderManagePrint($orders,$user)
     {
-        foreach($orders as $key => $order){
-            if(isset($orders[$key-1]) && $order['product_name'] != $orders[$key-1]['product_name']){
-                $cellData[] = [
-                    'code' => '',
-                    'color' => '',
-                    'num' => '',
-                    'product_name' => '',
-                    'onePrice' => '',
-                    'allPrice' => '',
-                ];
-            }
-            $cellData[] = [
+        $sorted = [];
+        foreach($orders as $order){
+            $sorted[$order['product_name']][$order['color']['name']][] = [
                 'code' => $order['code']['name'],
                 'color' => $order['color']['name'],
                 'num' => $order['num'],
@@ -60,6 +59,24 @@ trait OrderHelper
                 'allPrice' => $order['sale_price'],
             ];
         }
+
+        $cellData = [];
+        foreach($sorted as $productName){
+            foreach($productName as $color){
+                foreach($color as $value){
+                    $cellData[] = $value;
+                }
+            }
+            $cellData[] = [
+                'code' => '',
+                'color' => '',
+                'num' => '',
+                'product_name' => '',
+                'onePrice' => '',
+                'allPrice' => '',
+            ];
+        }
+        if(isset($cellData[count($cellData)-1])) unset($cellData[count($cellData)-1]);
 
         $result = [
             'userName' => $user->name,
@@ -88,10 +105,11 @@ trait OrderHelper
             $productSku = ProductSku::with('product:id,warehouse_id')->find($order['product_sku_id']);
             $order['category'] = $request->category;
             $order['address'] = $request->address;
-            $order['sno'] = $sno;
+            $order['sno'] = $sno; 
             $order['cost_price'] = $productSku->cost_price*$order['num'];
             $order['sale_price'] = $productSku->sale_price*$order['num'];
             $order['warehouse_id'] = $productSku->product->warehouse_id;
+            ProductSku::where('id',$order['product_sku_id'])->decrement('stock',$order['num']);
         };
 
         return $data;

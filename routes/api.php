@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 /*
@@ -56,6 +57,7 @@ Route::group(['middleware'=>'jwt.api.auth'],function(){
     Route::post('products/productSku','ProductsController@skuStore')->name('products.skuStore');
     Route::put('products/productSku/{productSku}','ProductsController@skuUpdate')->name('products.skuUpdate');
     Route::delete('products/productSku/{productSku}','ProductsController@skuDelete')->name('products.skuDelete');
+    Route::put('products/productSku/stock/{productSku}','ProductsController@skuStockUpdate')->name('products.skuStockUpdate');
 
 
     //角色
@@ -86,6 +88,11 @@ Route::group(['middleware'=>'jwt.api.auth'],function(){
     Route::get('orders/output/export','OrdersController@outputExport')->name('orders.outputExport');
     Route::get('orders/return/export','OrdersController@returnExport')->name('orders.returnExport');
     Route::get('orders/manage/print','OrdersController@managePrint')->name('orders.managePrint');
+    Route::get('orders/statistics','OrdersController@statistics')->name('orders.statistics');
+    Route::get('orders/userStatistics','OrdersController@UserStatistics')->name('orders.statistics');
+
+    //下单库
+    Route::resource('placingLibraries','PlacingLibrariesController',['only'=>['index','store','update','destroy']]);
 
 
     //仓库

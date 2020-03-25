@@ -8,7 +8,6 @@ use App\ModelFilters\ProductFilter;
 
 class Product extends Model
 {
-    use Traits\ProductHelper;
     use Traits\ExcelHelper;
     use Filterable;
 
@@ -50,15 +49,12 @@ class Product extends Model
         return $this->hasMany('App\Models\ProductImage');
     }
 
-    /**
-     * 库存预警sku
-     */
-    public function warningSku()
-    {
-        $system = System::first();
-        return $this->hasMany('App\Models\ProductSku')->where('stock','<',$system->stock_warning);
-    }
 
+    /**
+     * 获取模糊查询
+     *
+     * @return void
+     */
     public function modelFilter()
     {
         return $this->provideFilter(ProductFilter::class);

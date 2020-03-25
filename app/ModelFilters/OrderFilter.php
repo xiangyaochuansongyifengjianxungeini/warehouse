@@ -19,11 +19,11 @@ class OrderFilter extends ModelFilter
 
     public function startAt($start_at)
     {
-        return $this->where('created_at','>',$start_at);
+        return $this->where('created_at','>=',$start_at);
     }
 
     public function endAt($end_at)
     {
-        return $this->where('created_at','<',Carbon::parse($end_at)->addDay(1));
+        return $this->where('created_at','<=',Carbon::parse($end_at)->addDay(1));
     }
 }

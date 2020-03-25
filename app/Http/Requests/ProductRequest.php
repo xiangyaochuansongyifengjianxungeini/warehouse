@@ -29,7 +29,8 @@ class ProductRequest extends FormRequest
        if(auth('api')->user()->status==2){
         throw new CheckException('0','您的账号已被冻结!');
     }
-       switch($path){
+       switch($path)
+       {
            case 'products.store':
                 return [
                     'name' => 'required',
@@ -39,6 +40,7 @@ class ProductRequest extends FormRequest
                     'warehouse_id' => 'required',
                 ];
                 break;
+
             case 'products.update':
                 return [
                     'name' => 'required',
@@ -47,11 +49,13 @@ class ProductRequest extends FormRequest
                     'warehouse_id' => 'required',
                 ];
                 break;
+
             case 'products.status':
                 return [
                     'status' => 'required',
                 ];
                 break;
+
             case 'products.skuUpdate':
                 return [
                     'name' => 'required',
@@ -63,6 +67,13 @@ class ProductRequest extends FormRequest
                     'warehouse_id' => 'required',
                 ];
                 break;
+
+            case 'products.skuStockUpdate':
+                return [
+                    'incrStock' => 'required',
+                ];
+            break;
+
             default:
                 return [
                     

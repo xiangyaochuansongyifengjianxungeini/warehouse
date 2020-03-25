@@ -124,7 +124,9 @@ class UsersController extends Controller
             if($user){
                 return response()->json(['code'=>1,'msg'=>'成功','data'=>$user]);
             }
-            return response()->json(['code'=>2001,'msg'=>'失败','data'=>$user]);
+            return response()->json(['code'=>2001,'msg'=>'失败','data'=>$user]);    
+
+            
         });
     }
 
@@ -175,40 +177,36 @@ class UsersController extends Controller
     }
 
     /**
-     * 代理分析
+     * 获取代理分析
+     *
+     * @param Request $request
+     * @return void
      */
     public function agentAnalysis(Request $request)
     {
-        $data = $request->all();
-        $date = date('Y-m-d',time());
-        $data['start_at'] = isset($data['start_at'])?$data['start_at']:$date;
-        $data['end_at'] = isset($data['end_at'])?$data['end_at']:$date;
-        $data['end_at'] = date('Y-m-d',strtotime($data['end_at']."+1 day"));
+        $data = todayDate($request->all());
 
-        $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
+        $request->type != 1 && $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
             $query->where('created_at','>',$data['start_at'])->where('created_at','<',$data['end_at'])->wherein('status',[3,5]);
         }])->paginate(request('pageSize',10));
 
+        $request->type == 1 && $request->type != 1 && $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
+            $query->where('created_at','>',$data['start_at'])->where('created_at','<',$data['end_at'])->wherein('status',[3,5]);
+        }])->get();
 
         $agents->map(function($agent){
-            $agent->placeCount = $agent->placePrice = $agent->returnCount = $agent->returnPrice = 0;
-            $agent->orders->map(function($order) use($agent){
-                if($order->status == 3){
-                    $agent->placeCount++;
-                    $agent->placePrice += $order->sale_price;
-                }elseif($order->status == 5){
-                    $agent->returnCount++;
-                    $agent->returnPrice += $order->sale_price;
-                }
-            });
-            $agent->percentage = round($agent->placePrice*$agent->agentRank->rate,2);
+            $orders = collect($agent->orders)->groupBy('status');
+
+            $agent->placeCount = isset($orders[3])?collect($orders[3])->sum('num'):0;
+            $agent->placePrice = sprintf('%.2f',isset($orders[3])?collect($orders[3])->sum('sale_price'):0);  
+
+            $agent->returnCount = isset($orders[5])?collect($orders[5])->sum('num'):0;
+            $agent->returnPrice = sprintf('%.2f',isset($orders[5])?collect($orders[5])->sum('sale_price'):0);   
+
+            $agent->percentage = sprintf('%.2f',$agent->placePrice*$agent->agentRank->rate);
             unset($agent->orders);
         });
 
-        // foreach($agents as &$agent){
-        //     $agent['percentage'] = round($agent['orders']->sum('sale_price')*$agent->agentRank->rate,2);
-        //     unset($agent['orders']);
-        // }
         $agents->sortByDesc('percentage');
 
         return response()->json(['code'=>1,'msg'=>'成功','data'=>$agents]);
@@ -241,5 +239,8 @@ class UsersController extends Controller
         }
         return response()->json(['code'=>1,'msg'=>'失败','data'=>$user]);
     }
+
+
+    
 
 }

@@ -52,8 +52,10 @@ class User extends Authenticatable implements JWTSubject
     }
 
      /**
-     * 入库-产品列表
-     */
+      * 获取入库产品列表
+      *
+      * @return void
+      */
     public function storeProducts()
     {
         return $this->hasManyThrough(Product::class, WarehouseUser::class,'user_id','warehouse_id','id','warehouse_id')->where('status','<>',0);
@@ -67,7 +69,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function agentOrder()
     {
-        return $this->hasMany(Order::class,'users_id')->with(['warehouse:id,name','product:id,model','code','color'])->orderBy('id','desc');
+        return $this->hasMany(Order::class,'users_id')->with(['warehouse:id,name','product:id,model','code','color']);
     }
 
 
@@ -79,27 +81,36 @@ class User extends Authenticatable implements JWTSubject
     public function adminOrder()
     {
         return $this->hasManyThrough(Order::class, WarehouseUser::class,'user_id','warehouse_id','id','warehouse_id')
-        ->with(['user:id,name','product:id,model','code','color'])->orderBy('id','desc');
+        ->with(['user:id,name','product:id,model','code','color'])->wherehas('user',function($query){
+            $query->where('name','like','%'.request('user_name').'%');
+        });
     }
 
     /**
-     * 代理-代理等级
+     * 获取代理等级
+     *
+     * @return void
      */
     public function agentRank()
     {
-        return $this->belongsTo('App\Models\AgentRank');
+        return $this->belongsTo(AgentRank::class);
     }
 
-    /**
-     * 用户订单列表
-     */
+   /**
+    * 获取用户订单列表
+    *
+    * @return void
+    */
     public function orders()
     {  
         return $this->hasMany(Order::class,'users_id');
     }
 
     /**
-     * 可以显示的用户
+     * 获取可以显示的用户
+     *
+     * @param [type] $query
+     * @return void
      */
     public function scopeAviable($query)
     {
@@ -107,41 +118,63 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * 仓库
+     * 获取仓库
+     *
+     * @return void
      */
     public function warehouse()
     {
-        return $this->belongsToMany('App\Models\Warehouse','warehouse_user','user_id','warehouse_id');
+        return $this->belongsToMany(Warehouse::class,'warehouse_user','user_id','warehouse_id');
     }
 
     /**
-     * 产品
+     * 获取产品
+     *
+     * @return void
      */
     public function product()
     {
         return $this->hasMany(Product::class);
     }
 
-    /**
-     * 属性值
-     */
+   /**
+    * 获取属性值
+    *
+    * @return void
+    */
     public function itemValue()
     {
-        return $this->hasMany('App\Models\ItemValue');
+        return $this->hasMany(ItemValue::class);
     }
 
-     /**
-     * 产品sku
+    /**
+     * 获取产品sku
+     *
+     * @return void
      */
     public function sku()
     {
-        return $this->hasManyThrough('App\Models\Product', 'App\Models\WarehouseUser','user_id','warehouse_id','id','warehouse_id')->where('status','<>',0)->has('warningSku');
+        return $this->hasManyThrough(Product::class, WarehouseUser::class,'user_id','warehouse_id','id','warehouse_id');
     }
 
-    
+    /**
+     * 模糊查询
+     *
+     * @return void
+     */
     public function modelFilter()
     {
         return $this->provideFilter(userFilter::class);
+    }
+
+    /**
+     * 获取下单库
+     *
+     * @return void
+     */
+    public function placingLibrary()
+    {
+        return $this->hasMany(PlacingLibrary::class);
     }
 
 }

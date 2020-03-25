@@ -24,10 +24,11 @@ class OrdersController extends Controller
     public function index(Request $request,Order $order)
     {
         $isAgent = auth('api')->user()->hasRole(6);
-        $isAgent && $orders = auth('api')->user()->agentOrder()->outbound()->filter($request->all())->paginateFilter(request('pageSize',10));
+        $isAgent && $orders = auth('api')->user()->agentOrder()->outbound()->createdAtOrder()->filter($request->all())->paginateFilter(request('pageSize',10));
 
         !$isAgent && ($request->type == 2) && $orders = $order->orderManage($request);
-        !$isAgent && ($request->type !=2) && $orders = auth('api')->user()->adminOrder()->outbound()->filter($request->all())->paginateFilter(request('pageSize',10));
+        !$isAgent && ($request->type !=2) && $orders = auth('api')->user()->adminOrder()->outbound()->createdAtOrder()
+        ->betweenDate($request)->filter($request->except(['start_at','end_at']))->paginateFilter(request('pageSize',10));
 
         return respond(1,'成功',$orders);
     }
@@ -42,13 +43,13 @@ class OrdersController extends Controller
     public function store(OrderRequest $request,Order $order)
     {
         $data = request('list');
-        $data = $order->orderStore($data,$order,$request);
+        return DB::transaction(function() use($data,$order,$request){
+            $data = $order->orderStore($data,$order,$request);
  
-        $creditAmount = collect($data)->sum('sale_price');
-        if($creditAmount > auth('api')->user()->credit_amount){
-            throw new CheckException(0,'授信金额不足');
-        }
-        return DB::transaction(function() use($data,$creditAmount){
+            $creditAmount = collect($data)->sum('sale_price');
+            if($creditAmount > auth('api')->user()->credit_amount){
+                throw new CheckException(0,'授信金额不足');
+            }
 
             auth('api')->user()->orders()->createMany($data);
             auth('api')->user()->decrement('credit_amount',$creditAmount);
@@ -104,7 +105,8 @@ class OrdersController extends Controller
 
             $orders = Order::where('sno',$order->sno)->get();
             $result = $orders->map(function ($order){
-                User::where('id',$order->user_id)->increment('credit_amount',$order->sale_price);
+                User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
+                ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
                 return $order->delete();
             });
            
@@ -146,8 +148,7 @@ class OrdersController extends Controller
                 $data = $request->all();
                 $data['status'] = 3;
                 $order->update($data);
-                ProductSku::where('id',$order->product_sku_id)->decrement('stock',$order->num);
-                User::where('id',$order->user_id)->increment('credit_amount',$order->sale_price);
+                User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
             });
 
         });
@@ -164,7 +165,8 @@ class OrdersController extends Controller
         DB::transaction(function() use($orders){
 
             $orders->map(function ($order){
-                User::where('id',$order->user_id)->increment('credit_amount',$order->sale_price);
+                User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
+                ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
                 $order->update(['status'=>6]);
             });
 
@@ -183,31 +185,24 @@ class OrdersController extends Controller
     {
         $isAgent = auth('api')->user()->hasRole(6);
 
-        $isAgent && $orders = auth('api')->user()->agentOrder()->return()->filter($request->all())->paginateFilter(request('pageSize',10));
+        $isAgent && $orders = auth('api')->user()->agentOrder()->return()->updatedAtOrder()->filter($request->all())->paginateFilter(request('pageSize',10));
         $isAgent && $category = 1;
 
-        !$isAgent && $orders = auth('api')->user()->adminOrder()->return()->filter($request->all())->paginateFilter(request('pageSize',10));
+        !$isAgent && $orders = auth('api')->user()->adminOrder()->return()->updatedAtOrder()->filter($request->all())->paginateFilter(request('pageSize',10));
         !$isAgent && $category = 2;
-       
+     
         return response()->json(['code'=>1,'msg'=>'成功','data'=>$orders,'category'=>$category]);
     }
 
    /**
     * 提交订单退货申请
     *
-    * @param OrderRequest $request
     * @param Order $order
     * @return void
     */
-    public function apply(OrderRequest $request,Order $order)
+    public function apply(Order $order)
     {
-        $data = $request->all();
-        $data['status'] = 4;
-
-        $orders = Order::where('sno',$order->sno)->get();
-        $orders->map(function ($order) use($data){
-            $order->update($data);
-        });
+        $order->update(['status'=>4]);
 
         return respond(1,'成功');
     }
@@ -237,8 +232,9 @@ class OrdersController extends Controller
         return DB::transaction(function() use ($order){
 
             $result = $order->update(['status'=>5]);
+            User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
             ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
-
+            
             return $result?respond(1,'成功',$result):respond(0,'失败',$result);
         });
         
@@ -272,16 +268,21 @@ class OrdersController extends Controller
     {
         $isAgent = auth('api')->user()->hasRole(6);
 
-        $isAgent && $orders = auth('api')->user()->agentOrder()->outbound()->filter($request->all())->get()->toArray();
+        $isAgent && $orders = auth('api')->user()->agentOrder()->confirm()->createdAtOrder()->filter($request->all())->get()->toArray();
         $isAgent && $cellData =$order->orderAgentExport($orders,1);
 
-        !$isAgent && ($request->type != 2) && $orders = auth('api')->user()->adminOrder()->outbound()->filter($request->all())->get()->toArray();
+        !$isAgent && ($request->type != 2) && $orders = auth('api')->user()->adminOrder()->confirm()->createdAtOrder()->filter($request->all())->get()->toArray();
         !$isAgent && ($request->type != 2) && $cellData = $order->orderAdminExport($orders);
 
         if(isset($cellData)) return $order->export('出库列表',$cellData);
 
+        $data = $request->all();
+        (!$request->start_at && !$request->end_at) && $data = todayDate($data);
+
         $user = User::find($request->user_id);
-        $orders = Order::with('product','code','color')->where('sno',$request->sno)->get()->toArray();
+        $orders = Order::with('product','code','color')->where('users_id',$request['user_id'])->betweenDate($data)->confirm()->get()->toArray();
+        $sorted = collect($orders)->sortBy('code.name');
+        $orders = $sorted->values()->all();
 
         return $order->orderManageExport($orders,$user);
     }
@@ -295,14 +296,21 @@ class OrdersController extends Controller
      */
     public function managePrint(Request $request,Order $order)
     {
-        $user = User::find($request->user_id);
-        $orders = Order::with('product','code','color')->where('sno',$request->sno)->get()->toArray();
-        $orders = collect($orders)->sortBy('code.name')->sortBy('color.name')->sortBy('product_name');
-        $orders = $orders->values()->all();
+        $data = $request->all();
+        (!$request->start_at && !$request->end_at) && $data = todayDate($data);
 
-        $result = $order->orderManagePrint($orders,$user);
+        $user = User::find($request['user_id']);
+        Order::where('users_id',$request['user_id'])->betweenDate($data)->confirm()->update(['is_print'=>1]);
 
-        return respond(1,'成功',$result);
+        $orders = auth('api')->user()->adminOrder()->with('product','code','color')->where('users_id',$request['user_id'])->confirm()->betweenDate($data)
+        ->filter($request->except(['start_at','end_at']))->get()->toArray();
+
+        $sorted = collect($orders)->sortBy('code.name');
+        $orders = $sorted->values()->all();
+
+        $orders = $order->orderManagePrint($orders,$user);
+
+        return respond(1,'成功',$orders);
     }
 
 
@@ -317,10 +325,10 @@ class OrdersController extends Controller
     {
         $isAgent = auth('api')->user()->hasRole(6);
 
-        $isAgent && $orders = auth('api')->user()->agentOrder()->return()->filter($request->all())->get()->toArray();
+        $isAgent && $orders = auth('api')->user()->agentOrder()->confirmReturn()->updatedAtOrder()->filter($request->all())->get()->toArray();
         $isAgent && $cellData = $order->orderAgentExport($orders,2);
 
-        !$isAgent && $orders = auth('api')->user()->adminOrder()->return()->filter($request->all())->get()->toArray();
+        !$isAgent && $orders = auth('api')->user()->adminOrder()->confirmReturn()->updatedAtOrder()->filter($request->all())->get()->toArray();
         !$isAgent && $cellData = $order->orderAdminExport($orders);
 
         return $order->export('退货列表',$cellData);
@@ -345,6 +353,46 @@ class OrdersController extends Controller
         });
 
         return respond(1,'成功',$result);
+    }
+
+    /**
+     * 获取订单统计
+     *
+     * @param OrderRequest $request
+     * @return void
+     */
+    public function statistics(OrderRequest $request)
+    {
+        $data = todayDate($request->all());
+
+        $orders = Order::where('created_at','>',$data['start_at'])->where('created_at','<',$data['end_at']);
+
+        $statistics = [
+            'totalValue' => $orders->sum('sale_price'),
+            'totalNum' => $orders->count(),
+        ];
+
+        return respond(1,'成功',$statistics);
+    }
+
+    /**
+     * 获取用户订单统计
+     *
+     * @param OrderRequest $request
+     * @return void
+     */
+    public function userStatistics(OrderRequest $request)
+    {
+        $data = todayDate($request->all());
+
+        $orders = Order::where('created_at','>',$data['start_at'])->where('created_at','<',$data['end_at'])->where(['users_id'=>auth('api')->user()->id,'status'=>'3']);
+
+        $statistics = [
+            'totalValue' => $orders->sum('sale_price'),
+            'totalNum' => $orders->count(),
+        ];
+
+        return respond(1,'成功',$statistics);
     }
 
 

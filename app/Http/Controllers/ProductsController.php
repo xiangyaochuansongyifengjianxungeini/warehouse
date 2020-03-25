@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Requests\ProductRequest;
 use App\Models\ItemValue;
 use App\Models\ProductSku;
+use App\Models\System;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use php_user_filter;
@@ -37,7 +38,10 @@ class ProductsController extends php_user_filter
      */
     public function stockWarning()
     {
-        $products = auth('api')->user()->sku;
+        $system = System::first();
+        $products = auth('api')->user()->sku()->aviable()->with('productSku.itemValue')->wherehas('productSku',function($query)use($system){
+            $query->where('stock','<',$system->stock_warning);
+        })->get()->makeHidden(['status']);
 
         return respond(1,'成功',$products);
     }
@@ -67,8 +71,6 @@ class ProductsController extends php_user_filter
     public function store(ProductRequest $request,Product $product)
     {
         return DB::transaction(function() use($request,$product){
-
-            // isset($skuData[0]['image']) && $skuData = $product->uploadImages($request->sku);
             $product = auth('api')->user()->product()->create($request->all());
 
             collect($request->sku)->map(function($sku) use($product){
@@ -145,16 +147,6 @@ class ProductsController extends php_user_filter
     public function skuUpdate(ProductRequest $request,ProductSku $productSku)
     {
         return DB::transaction(function() use($request,$productSku){
-            // $product = $productSku->product;
-
-            // // Storage::disk('public')->delete((json_decode($productSku->image,true)));
-            //  //图片上传
-            //  $skuData['image'] = '';
-            //  if(request('image') && request('image') != '无'){
-            //     $image[] = ['image'=>request('image')];
-            //     $image = $product->uploadImages($image);
-            //     $skuData['image'] = $image[0]['image'];
-            //  }
             $productSku->update($request->only('cost_price','sale_price','stock','item_value','warehouse_id'));
             $productSku->itemValue()->sync(explode(',',$request->item_value));
 
@@ -175,6 +167,20 @@ class ProductsController extends php_user_filter
     {
         $productSku->itemValue()->detach();
         $result = $productSku->delete();
+
+        return $result?respond(1,'成功',$result):respond(0,'失败',$result);
+    }
+
+    /**
+     * 增加产品sku库存
+     *
+     * @param ProductRequest $request
+     * @param [type] $productSkuId
+     * @return void
+     */
+    public function skuStockUpdate(ProductRequest $request,$productSkuId)
+    {
+        $result = ProductSku::where('id',$productSkuId)->increment('stock',$request->incrStock);
 
         return $result?respond(1,'成功',$result):respond(0,'失败',$result);
     }
