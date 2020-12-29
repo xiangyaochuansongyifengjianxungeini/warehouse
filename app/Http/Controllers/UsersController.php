@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use App\Http\Requests\UserRequest;
+use App\Models\Order;
 
 class UsersController extends Controller
 {
@@ -21,6 +22,7 @@ class UsersController extends Controller
     public function login(UserRequest $request)
     {
         $credentials = request(['tel', 'password']);
+        // $credentials['status'] = 1;
 
         if (! $token = auth('api')->attempt($credentials)) {
             return respond('0','认证失败');
@@ -186,11 +188,11 @@ class UsersController extends Controller
     {
         $data = todayDate($request->all());
 
-        $request->type != 1 && $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
+        $request->type != 2 && $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
             $query->where('created_at','>',$data['start_at'])->where('created_at','<',$data['end_at'])->wherein('status',[3,5]);
         }])->paginate(request('pageSize',10));
 
-        $request->type == 1 && $request->type != 1 && $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
+        $request->type == 2 && $agents = User::role('6')->Aviable()->select('id','name','credit_amount','agent_rank_id')->with(['agentRank:id,name,rate','orders'=>function($query) use($data){
             $query->where('created_at','>',$data['start_at'])->where('created_at','<',$data['end_at'])->wherein('status',[3,5]);
         }])->get();
 
@@ -208,6 +210,7 @@ class UsersController extends Controller
         });
 
         $agents->sortByDesc('percentage');
+        $request->type == 2 && $agents = ['data'=>$agents];
 
         return response()->json(['code'=>1,'msg'=>'成功','data'=>$agents]);
     }
@@ -240,7 +243,51 @@ class UsersController extends Controller
         return response()->json(['code'=>1,'msg'=>'失败','data'=>$user]);
     }
 
+    public function image()
+    {
+        $path="/home/wwwroot/default/images/";//请确保当前目录下有这个文件夹，由于一直要用，所以就不加检测了
+        $s=$this->pdf2Png("/home/wwwroot/default/test.pdf",$path);
+        
+    }
 
+    function pdf2Png($pdf, $path, $picExtension = 'png')
+{
+    $im = new \Imagick();
+    $im->setCompressionQuality(100);
+    $im->setResolution(120, 120);//设置分辨率 值越大分辨率越高
+    $im->readImage($pdf);
+
+    $canvas = new \Imagick();
+    $imgNum = $im->getNumberImages();
+    foreach ($im as $k => $sub) {
+        $sub->setImageFormat('png');
+        //$sub->setResolution(120, 120);
+        $sub->stripImage();
+        $sub->trimImage(0);
+        $width  = $sub->getImageWidth() + 10;
+        $height = $sub->getImageHeight() + 10;
+        if ($k + 1 == $imgNum) {
+            $height += 10;
+        } //最后添加10的height
+        $canvas->newImage($width, $height, new \ImagickPixel('white'));
+        $canvas->compositeImage($sub, \Imagick::COMPOSITE_DEFAULT, 5, 5);
+    }
+
+    $canvas->resetIterator();
+    $picPath = sprintf('%s%s.%s', $path, self::getRandStr(), $picExtension);
+    $canvas->appendImages(true)->writeImage($picPath);
+
+    return $picPath;
+}
+
+    function getRandStr()
+    {
+        $str     = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890';
+        $randStr = str_shuffle($str);//打乱字符串
+        $rands   = substr($randStr, 0, 6);
+
+        return $rands;
+    }
     
 
 }

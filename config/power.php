@@ -30,6 +30,7 @@ return [
             \App\Models\Supplier::class,
             \App\Models\System::class,
             \App\Models\AgentRank::class,
+            \App\Models\ProductSku::class,
         ],
 
         

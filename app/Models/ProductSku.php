@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductSku extends Model
 {
+    public $comment = '产品';
+
     protected $fillable = ['product_id','cost_price','sale_price','item_value','stock','image'];
 
     protected $hidden = ['status','updated_at','created_at'];

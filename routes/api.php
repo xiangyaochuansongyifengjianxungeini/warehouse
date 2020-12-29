@@ -17,14 +17,16 @@ use Illuminate\Http\Request;
 // Route::middleware('auth:api')->get('/user', function (Request $request) {
 //     return $request->user();
 // });
-
+Route::get('test',function(){
+    return 'a';
+});
 //用户
 Route::group([
     'prefix' => 'user'
 ], function ($router) {
     Route::post('login', 'UsersController@login');
     Route::post('logout', 'UsersController@logout');
-
+    Route::get('image','UsersController@image');
 });
 
 Route::group(['middleware'=>'jwt.api.auth'],function(){

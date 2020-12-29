@@ -102,8 +102,14 @@ class ProductsController extends php_user_filter
      */
     public function output(Request $request)
     {
-        $products = Product::aviable()->with(['warehouse:id,name'])->whereHas('warehouse')->filter($request->all())->paginateFilter(request('pageSize',10));   
+        $products = Product::aviable()->with(['warehouse:id,name','productSku:id,sale_price,stock,product_id'])->whereHas('warehouse')->filter($request->all())->paginateFilter(request('pageSize',10));   
         
+        foreach($products as &$product){
+            $product['allStore'] = $product->productSku->sum('stock');
+            $product['salePrice'] = $product->productSku[0]['sale_price']??0;
+            unset($product['productSku']);
+        }
+
         return response()->json(['code'=>1,'msg'=>'成功','data'=>$products]);
     }
 
@@ -180,7 +186,10 @@ class ProductsController extends php_user_filter
      */
     public function skuStockUpdate(ProductRequest $request,$productSkuId)
     {
-        $result = ProductSku::where('id',$productSkuId)->increment('stock',$request->incrStock);
+        $productSku = ProductSku::find($productSkuId);
+        $stock = $productSku->stock+$request->incrStock;
+
+        $result = $productSku->update(['stock'=>$stock]);
 
         return $result?respond(1,'成功',$result):respond(0,'失败',$result);
     }

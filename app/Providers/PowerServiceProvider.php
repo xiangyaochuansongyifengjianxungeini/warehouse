@@ -45,6 +45,7 @@ class PowerServiceProvider extends ServiceProvider
         }
    
         $observers = config('power.event.observers');
+
         foreach ($observers as $observer) {
             $observer::observe(ModelObserver::class);
         }

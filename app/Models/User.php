@@ -69,7 +69,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function agentOrder()
     {
-        return $this->hasMany(Order::class,'users_id')->with(['warehouse:id,name','product:id,model','code','color']);
+        return $this->hasMany(Order::class,'users_id')->with(['warehouse:id,name','product:id,model','code','color'])->has('code')->has('color');
     }
 
 
@@ -83,7 +83,7 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasManyThrough(Order::class, WarehouseUser::class,'user_id','warehouse_id','id','warehouse_id')
         ->with(['user:id,name','product:id,model','code','color'])->wherehas('user',function($query){
             $query->where('name','like','%'.request('user_name').'%');
-        });
+        })->has('code')->has('color');
     }
 
     /**

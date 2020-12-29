@@ -109,7 +109,7 @@ trait OrderHelper
             $order['cost_price'] = $productSku->cost_price*$order['num'];
             $order['sale_price'] = $productSku->sale_price*$order['num'];
             $order['warehouse_id'] = $productSku->product->warehouse_id;
-            ProductSku::where('id',$order['product_sku_id'])->decrement('stock',$order['num']);
+            // ProductSku::where('id',$order['product_sku_id'])->decrement('stock',$order['num']);
         };
 
         return $data;

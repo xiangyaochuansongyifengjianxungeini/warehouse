@@ -28,12 +28,6 @@ class OrderRequest extends FormRequest
         $path = \Request::route()->getName();
         switch($path){
             case 'orders.store':
-                $data = request('list');
-                foreach($data as $val){
-                    if($val['num'] > ProductSku::where('id',$val['product_sku_id'])->first()->stock){
-                        throw new CheckException(0,$val['product_name'].'库存不足');
-                    }
-                }
                 if(auth('api')->user()->status == 2) throw new CheckException(0,'账号已被冻结');
                 return [
                     'list' => 'required',
@@ -49,9 +43,6 @@ class OrderRequest extends FormRequest
                 ];
                 break;
             case 'orders.submitConfirm':
-            if(ProductSku::where('id',$this->route('order')->product_sku_id)->first()->stock-$this->route('order')->num<0){
-                throw new CheckException(0,'库存不足');
-            }
                 return [
                 ];
                 break;

@@ -88,6 +88,18 @@ trait ExcelHelper
                 $order['created_at'],
             ];
         }
+        $cellData[] = [
+            '订单数：'.count($orders),
+            '',
+            '',
+            '',
+            '',
+            '',
+            '合计：'.collect($orders)->sum('sale_price'),
+            '合计：'.collect($orders)->sum('num'),
+            '',
+            '',
+        ];
         return $cellData;
     }
 
@@ -105,6 +117,7 @@ trait ExcelHelper
                 $sheet->rows($cellData);
 
                 for($i=0;$i<count($cellData)+1;$i++){
+                    $sheet->setWidth($this->cellLetter[$i], 18);
                     $sheet->row($i, function ($row) use($i) {
                         $row->setAlignment('left');
                    });
@@ -167,7 +180,7 @@ trait ExcelHelper
         $cellData[] = ['订单列表'];
         $cellData[] = ['会员名:'.$user->name,'','','','',''];
         $cellData[] = ['时间：'.Carbon::now(),'','','','',''];
-        $cellData[] = ['产品名称','颜色','码数','数量','单价','总价'];
+        $cellData[] = ['产品名称','颜色','码数','数量','单价','总价','地址'];
 
         foreach($orders as $order){
             $cellData[] = [
@@ -177,6 +190,7 @@ trait ExcelHelper
                 $order['num'],
                 sprintf('%.2f',$order['sale_price']/$order['num']),
                 $order['sale_price'],
+                $order['address'],
             ];
         }
 

@@ -53,6 +53,7 @@ class OrdersController extends Controller
 
             auth('api')->user()->orders()->createMany($data);
             auth('api')->user()->decrement('credit_amount',$creditAmount);
+            auth('api')->user()->placingLibrary()->delete();
            
             return respond(1,'成功');
         });
@@ -105,7 +106,7 @@ class OrdersController extends Controller
 
             $orders = Order::where('sno',$order->sno)->get();
             $result = $orders->map(function ($order){
-                User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
+                // User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
                 ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
                 return $order->delete();
             });
@@ -148,7 +149,7 @@ class OrdersController extends Controller
                 $data = $request->all();
                 $data['status'] = 3;
                 $order->update($data);
-                User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
+                // User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
             });
 
         });
@@ -165,7 +166,7 @@ class OrdersController extends Controller
         DB::transaction(function() use($orders){
 
             $orders->map(function ($order){
-                User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
+                // User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
                 ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
                 $order->update(['status'=>6]);
             });
@@ -185,10 +186,10 @@ class OrdersController extends Controller
     {
         $isAgent = auth('api')->user()->hasRole(6);
 
-        $isAgent && $orders = auth('api')->user()->agentOrder()->return()->updatedAtOrder()->filter($request->all())->paginateFilter(request('pageSize',10));
+        $isAgent && $orders = auth('api')->user()->agentOrder()->return()->updatedAtOrder()->search($request)->paginate(request('pageSize',10));
         $isAgent && $category = 1;
 
-        !$isAgent && $orders = auth('api')->user()->adminOrder()->return()->updatedAtOrder()->filter($request->all())->paginateFilter(request('pageSize',10));
+        !$isAgent && $orders = auth('api')->user()->adminOrder()->return()->updatedAtOrder()->search($request)->paginate(request('pageSize',10));
         !$isAgent && $category = 2;
      
         return response()->json(['code'=>1,'msg'=>'成功','data'=>$orders,'category'=>$category]);
@@ -202,7 +203,9 @@ class OrdersController extends Controller
     */
     public function apply(Order $order)
     {
-        $order->update(['status'=>4]);
+        // $order->update(['status'=>4,'returned_at'=>Now()]);
+        $order->update(['status'=>5,'returned_at'=>Now()]);
+        ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
 
         return respond(1,'成功');
     }
@@ -215,7 +218,9 @@ class OrdersController extends Controller
      */
     public function cancel(Order $order)
     {
-        $result = $order->update(['status'=>3]);
+
+        request('type') ==1 && $result = Order::where(['sno'=>$order->sno,'status'=>4])->update(['status'=>3]);
+        request('type') !=1 && $result = $order->update(['status'=>3]);
 
         return $result?respond(1,'成功',$result):respond(0,'失败',$result);
     }
@@ -229,13 +234,15 @@ class OrdersController extends Controller
      */
     public function applyConfirm(Order $order)
     {
-        return DB::transaction(function() use ($order){
-
-            $result = $order->update(['status'=>5]);
-            User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
-            ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
+        $orders = Order::where(['sno'=>$order->sno,'status'=>4])->get();
+        return DB::transaction(function() use ($orders){
+            $orders->map(function ($order){
+                $order->update(['status'=>5]);
+                // User::where('id',$order->users_id)->increment('credit_amount',$order->sale_price);
+                ProductSku::where('id',$order->product_sku_id)->increment('stock',$order->num);
+            });
             
-            return $result?respond(1,'成功',$result):respond(0,'失败',$result);
+            return respond(1,'成功');
         });
         
     }

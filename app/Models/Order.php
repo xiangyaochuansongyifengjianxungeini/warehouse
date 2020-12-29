@@ -7,6 +7,7 @@ use EloquentFilter\Filterable;
 use App\ModelFilters\OrderFilter;
 use App\Models\Traits\ExcelHelper;
 use App\Models\Traits\OrderHelper;
+use Carbon\Carbon;
 
 class Order extends Model
 {
@@ -18,7 +19,7 @@ class Order extends Model
     public $comment = '订单';
 
     protected $fillable = ['product_id','product_name','category','address','num','cost_price','sale_price','status','remark','users_id','return_reason','warehouse_id',
-        'code','color','sno','product_sku_id','freight','track_number'];
+        'code','color','sno','product_sku_id','freight','track_number','returned_at'];
 
     protected $hidden = ['updated_at','product_sku_id','warehouse_id','product_id'];
 
@@ -96,7 +97,7 @@ class Order extends Model
      */
     public function color()
     {
-        return $this->hasOne(ItemValue::class,'id','color');
+        return $this->hasOne(ItemValue::class,'id','color')->where('name','like','%'.request('color').'%');
     }
 
     /**
@@ -106,7 +107,7 @@ class Order extends Model
      */
     public function code()
     {
-        return $this->hasOne(ItemValue::class,'id','code');
+        return $this->hasOne(ItemValue::class,'id','code')->where('name','like','%'.request('code').'%');
     }
 
 
@@ -189,6 +190,26 @@ class Order extends Model
     public function scopeBetweenDate($query,$request)
     {
         return ($request['start_at'] && $request['end_at'])?$query->where('created_at','>=',$request['start_at'])->where('created_at','<=',$request['end_at']):$query;
+    }
+
+    /**
+     * 筛选查询
+     *
+     * @param [type] $query
+     * @param [type] $request
+     * @return void
+     */
+    public function scopeSearch($query,$request)
+    {
+        $request->start_at = $request->start_at?:Carbon::today();
+        $request->end_at = $request->end_at?:Carbon::today();
+   
+        return $query->where(function($query) use($request){
+            $request->product_name && $query->where('product_name','like','%'.$request->product_name.'%');
+            $request->category && $query->where('category',$request->category);
+            $request->start_at && $query->where('returned_at','>=',$request->start_at);
+            $request->end_at && $query->where('returned_at','<=',Carbon::parse($request->end_at)->addDay(1));
+        });
     }
 
 

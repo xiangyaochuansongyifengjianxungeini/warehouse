@@ -15,10 +15,20 @@ class WarehousesController extends Controller
      */
     public function index()
     {
-        $warehouses = Warehouse::where('status',1)->with('users:users.id,users.name,users.tel','productSku')->paginate(request('pageSize',10));
+        $warehouses = Warehouse::where('status',1)->with(['users:users.id,users.name,users.tel','productSku'=>function($query){
+            $query->where('product_skus.status',1);
+            $query->where('products.status',1);
+        }])->paginate(request('pageSize',10));
 
         $warehouses->map(function ($warehouse){
-            $warehouse->value = sprintf('%.2f',collect($warehouse->productSku)->sum('cost_price'));
+            // $warehouse->value = sprintf('%.2f',collect($warehouse->productSku)->sum('cost_price'));
+            collect($warehouse->productSku)->map(function($sku)use($warehouse){
+                $warehouse->value += $sku->cost_price*$sku->stock;
+                $warehouse->saleValue += $sku->sale_price*$sku->stock;
+
+            });
+            $warehouse->value = sprintf('%.2f',$warehouse->value);
+            $warehouse->saleValue = sprintf('%.2f',$warehouse->saleValue);
             unset($warehouse->productSku);
         });
 
